@@ -1,0 +1,21 @@
+# This Source Form is subject to the terms of the AQUA Software License, v. 1.0.
+# Copyright (c) 2025 Aymeric Wibo
+
+import bob
+import bob.go
+
+let aqua_dir = "/home/obiwac/aqua/aqua"
+
+deps = [
+	Dep.local(aqua_dir + "/lib/bindings/go"),
+	Dep.local(aqua_dir + "/vdev/ui"),
+	Dep.local(aqua_dir + "/kos"),
+]
+
+let bin = Go.build([])
+
+install = {
+	bin: "bin/music",
+}
+
+run = ["music"]
