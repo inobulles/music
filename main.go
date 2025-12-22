@@ -158,11 +158,6 @@ func main() {
 
 	// Play song.
 
-	// ogg, header, err := oggreader.NewWith(f)
-	// if err != nil {
-	// 	panic(err)
-	// }
-
 	in_stream, err := opus.NewStream(f)
 	if err != nil {
 		panic(err)
@@ -186,34 +181,6 @@ func main() {
 
 		stream.Write(aqua.AudioBufferNewCount(mono, n))
 	}
-
-	/*
-		streamer, format, err := mp3.Decode(f)
-		if err != nil {
-			panic(err)
-		}
-		defer streamer.Close()
-
-		fmt.Println(format)
-
-		buf := make([][2]float64, 4096)
-		mono := make([]float64, 4096)
-
-		for {
-			n, ok := streamer.Stream(buf)
-			if !ok {
-				break
-			}
-
-			for i := 0; i < n; i++ {
-				mono[i] = math.Sqrt(2) / 2 * (buf[i][0] + buf[i][1])
-			}
-
-			stream.Write(aqua.AudioBufferNew(mono))
-		}
-	*/
-
-	_ = stream
 
 	// Extract metadata.
 
