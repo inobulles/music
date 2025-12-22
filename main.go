@@ -11,17 +11,16 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
-	"math"
 	"os"
 	"runtime"
 	"strings"
 
 	"github.com/dhowden/tag"
-	"github.com/gopxl/beep/v2/mp3"
+	"github.com/hraban/opus"
 	"obiw.ac/aqua"
 )
 
-const PATH = "misery-business.mp3"
+const PATH = "private-idaho.opus"
 const SAMPLE_RATE = 48000
 
 func main() {
@@ -121,7 +120,7 @@ func main() {
 	var chosen_config *aqua.AudioConfig = nil
 
 	for _, config := range configs {
-		if config.SampleFormat == aqua.AUDIO_SAMPLE_FORMAT_F64 && SAMPLE_RATE >= config.MinSampleRate && SAMPLE_RATE <= config.MaxBufSize {
+		if config.SampleFormat == aqua.AUDIO_SAMPLE_FORMAT_F32 && SAMPLE_RATE >= config.MinSampleRate && SAMPLE_RATE <= config.MaxBufSize {
 			chosen_config = &config
 		}
 	}
@@ -156,29 +155,59 @@ func main() {
 
 	// Play song.
 
-	streamer, format, err := mp3.Decode(f)
+	in_stream, err := opus.NewStream(f)
 	if err != nil {
 		panic(err)
 	}
-	defer streamer.Close()
+	defer in_stream.Close()
 
-	fmt.Println(format)
-
-	buf := make([][2]float64, 4096)
-	mono := make([]float64, 4096)
+	// buf := make([]float32, 2*4096)
+	mono := make([]float32, 4096)
 
 	for {
-		n, ok := streamer.Stream(buf)
-		if !ok {
+		n, err := in_stream.ReadFloat32(mono)
+		if err == io.EOF {
 			break
+		} else if err != nil {
+			panic(err)
 		}
 
-		for i := 0; i < n; i++ {
-			mono[i] = math.Sqrt(2) / 2 * (buf[i][0] + buf[i][1])
-		}
+		// for i := 0; i < n/2; i++ {
+		// 	mono[i] = float32(math.Sqrt(2)/2) * (buf[i*2] + buf[i*2+1])
+		// }
 
-		stream.Write(aqua.AudioBufferNew(mono))
+		// println(len(mono), n)
+
+		stream.Write(aqua.AudioBufferNewCount(mono, n))
 	}
+
+	/*
+		streamer, format, err := mp3.Decode(f)
+		if err != nil {
+			panic(err)
+		}
+		defer streamer.Close()
+
+		fmt.Println(format)
+
+		buf := make([][2]float64, 4096)
+		mono := make([]float64, 4096)
+
+		for {
+			n, ok := streamer.Stream(buf)
+			if !ok {
+				break
+			}
+
+			for i := 0; i < n; i++ {
+				mono[i] = math.Sqrt(2) / 2 * (buf[i][0] + buf[i][1])
+			}
+
+			stream.Write(aqua.AudioBufferNew(mono))
+		}
+	*/
+
+	_ = stream
 
 	// Extract metadata.
 
@@ -257,7 +286,7 @@ func main() {
 	win.RegisterRedrawCb(func() {
 		state.Render()
 		x += 0.01
-		album_cover.SetAttr("rot", float32(x))
+		// album_cover.SetAttr("rot", float32(x))
 	})
 
 	win.RegisterResizeCb(func(x_res, y_res uint32) {
