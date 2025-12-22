@@ -19,7 +19,6 @@ import (
 	"github.com/dhowden/tag"
 	"github.com/hraban/opus"
 
-	// "github.com/pion/opus/pkg/oggreader"
 	"obiw.ac/aqua"
 	"obiw.ac/aqua/wgpu"
 )
@@ -270,8 +269,8 @@ func main() {
 	// - [x] Also might as well already display metadata like title, artist, album, whatever.
 	// - [ ] Keyboard input so can play/pause.
 	// - [ ] Nice animations on the album cover and perhaps vinyl (though don't know if that should be hidden on pause or not).
-	// - [ ] At this point we should work on getting the cool shader background working. Though that's gonna involve some though work for wgpu bindings in Go.
-	// - [ ] Make sound?
+	// - [-] At this point we should work on getting the cool shader background working. Though that's gonna involve some though work for wgpu bindings in Go.
+	// - [-] Make sound?
 	// - [ ] Mice! Buttons!
 	// - [ ] Progress indicator.
 	// - [ ] Cool album cover flipping thingy.

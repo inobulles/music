@@ -69,7 +69,7 @@ func (bg *Bg) Render(d *wgpu.Device) error {
 	defer render_pass.Release()
 
 	render_pass.SetPipeline(bg.pipeline)
-	render_pass.Draw(3, 1, 0, 0)
+	render_pass.Draw(6, 1, 0, 0)
 	render_pass.End()
 
 	cmd_buf, err := cmd_enc.Finish(&wgpu.CommandBufferDescriptor{
