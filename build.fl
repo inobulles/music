@@ -9,6 +9,7 @@ let aqua_dir = "/home/obiwac/aqua/aqua"
 deps = [
 	Dep.local(aqua_dir + "/lib/bindings/go"),
 	Dep.local(aqua_dir + "/vdev/ui"),
+	Dep.local(aqua_dir + "/vdev/audio"),
 	Dep.local(aqua_dir + "/kos"),
 ]
 

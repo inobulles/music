@@ -7,17 +7,19 @@ import (
 	"bytes"
 	"fmt"
 	"image"
+	"image/draw"
 	_ "image/jpeg"
 	_ "image/png"
-	"image/draw"
 	"os"
 	"runtime"
+	"strings"
 
 	"github.com/dhowden/tag"
 	"obiw.ac/aqua"
 )
 
 const PATH = "paradis-perdu.m4a"
+const SAMPLE_RATE = 48000
 
 func main() {
 	runtime.LockOSThread()
@@ -31,10 +33,12 @@ func main() {
 	descr := ctx.GetKosDescr()
 	fmt.Printf("AQUA context initialized successfully: KOS v%d, %s.\n", descr.ApiVers, descr.Name)
 
+	var iter *aqua.VdevIter
+
 	// Get window VDEV.
 
 	win_comp := ctx.WinInit()
-	iter := win_comp.NewVdevIter()
+	iter = win_comp.NewVdevIter()
 
 	var found *aqua.VdevDescr
 
@@ -85,6 +89,55 @@ func main() {
 
 	if ui_ctx.GetSupportedBackends()&aqua.UI_BACKEND_WGPU == 0 {
 		panic("WebGPU UI backend is not supported.")
+	}
+
+	// Get audio VDEV.
+
+	audio_comp := ctx.AudioInit()
+	iter = audio_comp.NewVdevIter()
+
+	var audio_vdev *aqua.VdevDescr = nil
+
+	for vdev := iter.Next(); vdev != nil; vdev = iter.Next() {
+		fmt.Printf("Found audio VDEV: %s (\"%s\", from \"%s\", %d:%d).\n", vdev.Spec, vdev.Human, vdev.VdriverHuman, vdev.Hid, vdev.Vid)
+
+		if audio_vdev == nil || strings.HasPrefix(vdev.Human, "default") {
+			audio_vdev = vdev
+		}
+	}
+
+	if audio_vdev == nil {
+		panic("No audio VDEV found.")
+	}
+
+	audio_ctx := audio_comp.Conn(audio_vdev)
+
+	// Look for suitable audio config and create audio stream with it.
+
+	configs := audio_ctx.GetConfigs()
+	var chosen_config *aqua.AudioConfig = nil
+
+	for _, config := range configs {
+		fmt.Println(aqua.AUDIO_SAMPLE_FORMAT_F32, config)
+
+		if config.SampleFormat == aqua.AUDIO_SAMPLE_FORMAT_F32 && SAMPLE_RATE >= config.MinSampleRate && SAMPLE_RATE <= config.MaxBufSize {
+			chosen_config = &config
+		}
+	}
+
+	if chosen_config == nil {
+		panic("Couldn't find satisfactory config.")
+	}
+
+	fmt.Println("Config sample format:", chosen_config.SampleFormat)
+	fmt.Println("Config channels:", chosen_config.Channels)
+	fmt.Println("Config sample rate range:", chosen_config.MinSampleRate, chosen_config.MaxSampleRate)
+	fmt.Println("Config buffer size range:", chosen_config.MinBufSize, chosen_config.MaxBufSize)
+
+	const RINGBUF_SEC = 20
+	_, err := audio_ctx.OpenStream(chosen_config.SampleFormat, 1, SAMPLE_RATE, 1000, SAMPLE_RATE*RINGBUF_SEC)
+	if err != nil {
+		panic(err)
 	}
 
 	// Create window.
