@@ -294,7 +294,7 @@ func main() {
 	var bg *Bg = nil
 
 	win.RegisterRedrawCb(func() {
-		state.Render()
+		state.Render() // TODO In order to use the same command encoder, we probably don't wanna use the ez methods.
 		x += 0.01
 		// album_cover.SetAttr("rot", float32(x))
 
@@ -307,7 +307,13 @@ func main() {
 				panic(err)
 			}
 
-			bg.Render(&dev)
+			root.SetAttr("bg.wgpu_tex_view", bg.view.ToRaw())
+		} else {
+			dev := wgpu.CreateDeviceFromRaw(state.RawDevice())
+
+			if err := bg.Render(&dev); err != nil {
+				panic(err)
+			}
 		}
 	})
 

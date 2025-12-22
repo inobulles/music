@@ -68,6 +68,7 @@ func (bg *Bg) Render(d *wgpu.Device) error {
 	})
 	defer render_pass.Release()
 
+	render_pass.SetPipeline(bg.pipeline)
 	render_pass.Draw(3, 1, 0, 0)
 	render_pass.End()
 
@@ -162,9 +163,9 @@ func (bg *Bg) create_pipeline(d *wgpu.Device) error {
 
 	if bg.pipeline_layout, err = d.CreatePipelineLayout(&wgpu.PipelineLayoutDescriptor{
 		Label: "Background pipeline layout",
-		BindGroupLayouts: []*wgpu.BindGroupLayout{
-			bg.bind_group_layout,
-		},
+		// BindGroupLayouts: []*wgpu.BindGroupLayout{
+		// 	bg.bind_group_layout,
+		// },
 	}); err != nil {
 		return err
 	}
