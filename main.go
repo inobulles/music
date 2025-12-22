@@ -4,16 +4,24 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
+	"image/draw"
+	"os"
 	"runtime"
 
+	"github.com/dhowden/tag"
 	"obiw.ac/aqua"
 )
+
+const PATH = "paradis-perdu.m4a"
 
 func main() {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-
 	ctx := aqua.Init()
 
 	if ctx == nil {
@@ -84,13 +92,71 @@ func main() {
 	win := win_ctx.Create()
 	defer win.Destroy()
 
+	// Read audio file.
+
+	f, err := os.Open(PATH)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+
+	meta, err := tag.ReadFrom(f)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("Title:", meta.Title())
+	fmt.Println("Artist:", meta.Artist())
+	fmt.Println("Album:", meta.Album())
+	fmt.Println("Year:", meta.Year())
+
+	img, _, err := image.Decode(bytes.NewReader(meta.Picture().Data))
+	if err != nil {
+		panic(err)
+	}
+
+	rgba := image.NewRGBA(img.Bounds())
+	draw.Draw(rgba, rgba.Bounds(), img, img.Bounds().Min, draw.Src)
+
 	// Create a UI.
 
 	ui := ui_ctx.Create()
 	defer ui.Destroy()
 
 	root := ui.GetRoot()
-	root.AddText("text.title", "Hello world!")
+	root.AddText("text.title", meta.Title())
+	root.AddText("text.paragraph", fmt.Sprintf("%s - %s", meta.Album(), meta.Artist()))
+
+	root.AddDiv("").SetAttr("min_h", aqua.UiDim{}.Pixels(30))
+	album_cover := root.AddDiv("")
+
+	album_cover.SetAttr("min_w", aqua.UiDim{}.Pixels(300))
+	album_cover.SetAttr("min_h", aqua.UiDim{}.Pixels(300))
+
+	album_cover.SetAttr("bg", aqua.UiRaster{
+		XRes: uint32(img.Bounds().Dx()),
+		YRes: uint32(img.Bounds().Dy()),
+		Data: rgba.Pix,
+	})
+
+	// TODO Next steps:
+	// - [x] Fix creating windows from threads (because of callbacks in the Go win bindings?).
+	// - [ ] I need to be able to set div min/max sizes through attrs. Use this opportunity to make attrs proper members?
+	// - [x] Need root element to actually have size of window.
+	// - [ ] Proper centered alignment of elements (for that div).
+	// - [ ] Also allow this positioning in absolute terms.
+	// - [x] Image attributes for background, which like just takes in a pointer and width/height/format.
+	// - [x] Read image from MP3 already.
+	// - [x] Also might as well already display metadata like title, artist, album, whatever.
+	// - [ ] Keyboard input so can play/pause.
+	// - [ ] Nice animations on the album cover and perhaps vinyl (though don't know if that should be hidden on pause or not).
+	// - [ ] At this point we should work on getting the cool shader background working. Though that's gonna involve some though work for wgpu bindings in Go.
+	// - [ ] Make sound?
+	// - [ ] Mice! Buttons!
+	// - [ ] Progress indicator.
+	// - [ ] Cool album cover flipping thingy.
+	// - [ ] Shadow.
+	// - [ ] Done????
 
 	// Set up UI backend.
 
@@ -102,8 +168,12 @@ func main() {
 
 	// Start window loop.
 
+	x := 0.0
+
 	win.RegisterRedrawCb(func() {
 		state.Render()
+		x += 0.01
+		album_cover.SetAttr("rot", float32(x))
 	})
 
 	win.RegisterResizeCb(func(x_res, y_res uint32) {
