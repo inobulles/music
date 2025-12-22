@@ -10,15 +10,18 @@ import (
 	"image/draw"
 	_ "image/jpeg"
 	_ "image/png"
+	"io"
+	"math"
 	"os"
 	"runtime"
 	"strings"
 
 	"github.com/dhowden/tag"
+	"github.com/gopxl/beep/v2/mp3"
 	"obiw.ac/aqua"
 )
 
-const PATH = "paradis-perdu.m4a"
+const PATH = "misery-business.mp3"
 const SAMPLE_RATE = 48000
 
 func main() {
@@ -118,9 +121,7 @@ func main() {
 	var chosen_config *aqua.AudioConfig = nil
 
 	for _, config := range configs {
-		fmt.Println(aqua.AUDIO_SAMPLE_FORMAT_F32, config)
-
-		if config.SampleFormat == aqua.AUDIO_SAMPLE_FORMAT_F32 && SAMPLE_RATE >= config.MinSampleRate && SAMPLE_RATE <= config.MaxBufSize {
+		if config.SampleFormat == aqua.AUDIO_SAMPLE_FORMAT_F64 && SAMPLE_RATE >= config.MinSampleRate && SAMPLE_RATE <= config.MaxBufSize {
 			chosen_config = &config
 		}
 	}
@@ -135,7 +136,7 @@ func main() {
 	fmt.Println("Config buffer size range:", chosen_config.MinBufSize, chosen_config.MaxBufSize)
 
 	const RINGBUF_SEC = 20
-	_, err := audio_ctx.OpenStream(chosen_config.SampleFormat, 1, SAMPLE_RATE, 1000, SAMPLE_RATE*RINGBUF_SEC)
+	stream, err := audio_ctx.OpenStream(chosen_config.SampleFormat, 1, SAMPLE_RATE, 1000, SAMPLE_RATE*RINGBUF_SEC)
 	if err != nil {
 		panic(err)
 	}
@@ -152,6 +153,36 @@ func main() {
 		panic(err)
 	}
 	defer f.Close()
+
+	// Play song.
+
+	streamer, format, err := mp3.Decode(f)
+	if err != nil {
+		panic(err)
+	}
+	defer streamer.Close()
+
+	fmt.Println(format)
+
+	buf := make([][2]float64, 4096)
+	mono := make([]float64, 4096)
+
+	for {
+		n, ok := streamer.Stream(buf)
+		if !ok {
+			break
+		}
+
+		for i := 0; i < n; i++ {
+			mono[i] = math.Sqrt(2) / 2 * (buf[i][0] + buf[i][1])
+		}
+
+		stream.Write(aqua.AudioBufferNew(mono))
+	}
+
+	// Extract metadata.
+
+	f.Seek(0, io.SeekStart)
 
 	meta, err := tag.ReadFrom(f)
 	if err != nil {
