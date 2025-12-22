@@ -21,6 +21,7 @@ import (
 
 	// "github.com/pion/opus/pkg/oggreader"
 	"obiw.ac/aqua"
+	"obiw.ac/aqua/wgpu"
 )
 
 const PATH = "private-idaho.opus"
@@ -104,7 +105,7 @@ func main() {
 	var audio_vdev *aqua.VdevDescr = nil
 
 	for vdev := iter.Next(); vdev != nil; vdev = iter.Next() {
-		fmt.Printf("Found audio VDEV: %s (\"%s\", from \"%s\", %d:%d).\n", vdev.Spec, vdev.Human, vdev.VdriverHuman, vdev.Hid, vdev.Vid)
+		fmt.Printf("Found audio VDEV: %s (\"%s\", from \"%s\").\n", vdev.Spec, vdev.Human, vdev.VdriverHuman)
 
 		if audio_vdev == nil || strings.HasPrefix(vdev.Human, "default") {
 			audio_vdev = vdev
@@ -277,22 +278,37 @@ func main() {
 	// - [ ] Shadow.
 	// - [ ] Done????
 
-	// Set up UI backend.
+	// Set up WebGPU backend for UI.
 
-	state, err := ui.WgpuEzSetup(win, wgpu_ctx)
+	var state *aqua.UiWgpuEzState
 
-	if err != nil {
+	if state, err = ui.WgpuEzSetup(win, wgpu_ctx); err != nil {
 		panic("UI WebGPU backend setup failed.")
 	}
+
+	wgpu.SetGlobalCtx(state.RawWgpuCtx)
 
 	// Start window loop.
 
 	x := 0.0
+	var bg *Bg = nil
 
 	win.RegisterRedrawCb(func() {
 		state.Render()
 		x += 0.01
 		// album_cover.SetAttr("rot", float32(x))
+
+		// Create background if it doesn't already exist.
+
+		if bg == nil {
+			dev := wgpu.CreateDeviceFromRaw(state.RawDevice())
+
+			if bg, err = (Bg{}).New(&dev); err != nil {
+				panic(err)
+			}
+
+			bg.Render(&dev)
+		}
 	})
 
 	win.RegisterResizeCb(func(x_res, y_res uint32) {
