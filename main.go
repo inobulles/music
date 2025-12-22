@@ -11,12 +11,15 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
+	"math"
 	"os"
 	"runtime"
 	"strings"
 
 	"github.com/dhowden/tag"
 	"github.com/hraban/opus"
+
+	// "github.com/pion/opus/pkg/oggreader"
 	"obiw.ac/aqua"
 )
 
@@ -135,7 +138,7 @@ func main() {
 	fmt.Println("Config buffer size range:", chosen_config.MinBufSize, chosen_config.MaxBufSize)
 
 	const RINGBUF_SEC = 20
-	stream, err := audio_ctx.OpenStream(chosen_config.SampleFormat, 1, SAMPLE_RATE, 1000, SAMPLE_RATE*RINGBUF_SEC)
+	stream, err := audio_ctx.OpenStream(chosen_config.SampleFormat, 1, SAMPLE_RATE, 960, SAMPLE_RATE*RINGBUF_SEC)
 	if err != nil {
 		panic(err)
 	}
@@ -155,28 +158,31 @@ func main() {
 
 	// Play song.
 
+	// ogg, header, err := oggreader.NewWith(f)
+	// if err != nil {
+	// 	panic(err)
+	// }
+
 	in_stream, err := opus.NewStream(f)
 	if err != nil {
 		panic(err)
 	}
 	defer in_stream.Close()
 
-	// buf := make([]float32, 2*4096)
-	mono := make([]float32, 4096)
+	buf := make([]float32, 2*960)
+	mono := make([]float32, 960)
 
 	for {
-		n, err := in_stream.ReadFloat32(mono)
+		n, err := in_stream.ReadFloat32(buf)
 		if err == io.EOF {
 			break
 		} else if err != nil {
 			panic(err)
 		}
 
-		// for i := 0; i < n/2; i++ {
-		// 	mono[i] = float32(math.Sqrt(2)/2) * (buf[i*2] + buf[i*2+1])
-		// }
-
-		// println(len(mono), n)
+		for i := 0; i < n; i++ {
+			mono[i] = float32(math.Sqrt(2)/2) * (buf[i*2] + buf[i*2+1])
+		}
 
 		stream.Write(aqua.AudioBufferNewCount(mono, n))
 	}

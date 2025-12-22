@@ -13,4 +13,6 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 )
 
+replace obiw.ac/aqua/wgpu => /home/obiwac/aqua/aqua/external/go-webgpu
+
 replace obiw.ac/aqua => /home/obiwac/aqua/aqua/lib/bindings/go
