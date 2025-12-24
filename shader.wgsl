@@ -43,14 +43,24 @@ struct FragOut {
 	@location(0) colour: vec4f,
 };
 
+struct SwirlData {
+	progression: f32,
+};
+
 @group(0) @binding(0)
 var t: texture_2d<f32>;
 @group(0) @binding(1)
 var s: sampler;
+@group(0) @binding(2)
+var<uniform> swirl_data: SwirlData;
 
 @fragment
 fn frag_main(vert: VertOut) -> FragOut {
 	var out: FragOut;
-	out.colour = vec4(vert.colour, 1.0) * textureSample(t, s, vert.tex_coord);
+	var alpha = textureSample(t, s, vert.tex_coord).g;
+
+	alpha = (alpha - 1.0 + swirl_data.progression) * 20;
+
+	out.colour = vec4(vert.colour, 1.0) * clamp(alpha, 0., 1.);
 	return out;
 }

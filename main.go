@@ -237,7 +237,7 @@ func main() {
 	// - [x] Also might as well already display metadata like title, artist, album, whatever.
 	// - [ ] Keyboard input so can play/pause.
 	// - [ ] Nice animations on the album cover and perhaps vinyl (though don't know if that should be hidden on pause or not).
-	// - [-] At this point we should work on getting the cool shader background working. Though that's gonna involve some though work for wgpu bindings in Go.
+	// - [x] At this point we should work on getting the cool shader background working. Though that's gonna involve some though work for wgpu bindings in Go.
 	// - [-] Make sound?
 	// - [ ] Mice! Buttons!
 	// - [ ] Progress indicator.
@@ -263,6 +263,9 @@ func main() {
 	win.RegisterRedrawCb(func() {
 		state.Render() // TODO In order to use the same command encoder, we probably don't wanna use the ez methods.
 		x += 0.01
+		if x > 1.5 {
+			x = 0
+		}
 		// album_cover.SetAttr("rot", float32(x))
 
 		// Create background if it doesn't already exist.
@@ -278,7 +281,7 @@ func main() {
 		} else {
 			dev := wgpu.CreateDeviceFromRaw(state.RawDevice())
 
-			if err := bg.Render(&dev); err != nil {
+			if err := bg.Render(&dev, x); err != nil {
 				panic(err)
 			}
 		}

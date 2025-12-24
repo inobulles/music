@@ -8,9 +8,14 @@ import (
 	"image"
 	"image/draw"
 	"os"
+	"unsafe"
 
 	"obiw.ac/aqua/wgpu"
 )
+
+type SwirlData struct {
+	Progression float32
+}
 
 type Bg struct {
 	// Swirl texture stuff.
@@ -31,6 +36,11 @@ type Bg struct {
 	pipeline_layout   *wgpu.PipelineLayout
 	pipeline          *wgpu.RenderPipeline
 	bind_group        *wgpu.BindGroup
+
+	// Swirl data.
+
+	swirl_data         SwirlData
+	swirl_data_uniform *wgpu.Buffer
 }
 
 const FORMAT = wgpu.TextureFormatRGBA8Unorm
@@ -56,7 +66,7 @@ func (Bg) New(d *wgpu.Device) (*Bg, error) {
 	return bg, nil
 }
 
-func (bg *Bg) Render(d *wgpu.Device) error {
+func (bg *Bg) Render(d *wgpu.Device, swirl_progression float64) error {
 	cmd_enc, err := d.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{
 		Label: "Background command encoder",
 	})
@@ -64,6 +74,12 @@ func (bg *Bg) Render(d *wgpu.Device) error {
 		return err
 	}
 	defer cmd_enc.Release()
+
+	queue := d.GetQueue()
+
+	bg.swirl_data.Progression = float32(swirl_progression)
+	const size = uint64(unsafe.Sizeof(bg.swirl_data))
+	queue.WriteBuffer(bg.swirl_data_uniform, 0, wgpu.ToBytes((*(*[uint64(unsafe.Sizeof(bg.swirl_data))]byte)(unsafe.Pointer(&bg.swirl_data)))[:])) // lol
 
 	render_pass := cmd_enc.BeginRenderPass(&wgpu.RenderPassDescriptor{
 		Label: "Background texture render pass",
@@ -73,10 +89,10 @@ func (bg *Bg) Render(d *wgpu.Device) error {
 				LoadOp:  wgpu.LoadOpClear,
 				StoreOp: wgpu.StoreOpStore,
 				ClearValue: wgpu.Color{
-					R: 1.0,
+					R: 0.0,
 					G: 0.0,
-					B: 1.0,
-					A: 0.5,
+					B: 0.0,
+					A: 0.0,
 				},
 			},
 		},
@@ -177,8 +193,8 @@ func (bg *Bg) create_tex(d *wgpu.Device) error {
 	if bg.tex, err = d.CreateTexture(&wgpu.TextureDescriptor{
 		Label: "Background texture",
 		Size: wgpu.Extent3D{
-			Width:              800,
-			Height:             600,
+			Width:              1920,
+			Height:             1080,
 			DepthOrArrayLayers: 1,
 		},
 		MipLevelCount: 1,
@@ -228,20 +244,13 @@ func (bg *Bg) create_pipeline(d *wgpu.Device) error {
 					Type: wgpu.SamplerBindingTypeFiltering,
 				},
 			},
-			// { // Colour #1.
-			// 	Binding:    2,
-			// 	Visibility: wgpu.ShaderStageFragment,
-			// 	Buffer: wgpu.BufferBindingLayout{
-			// 		Type: wgpu.BufferBindingTypeUniform,
-			// 	},
-			// },
-			// { // Colour #2.
-			// 	Binding:    3,
-			// 	Visibility: wgpu.ShaderStageFragment,
-			// 	Buffer: wgpu.BufferBindingLayout{
-			// 		Type: wgpu.BufferBindingTypeUniform,
-			// 	},
-			// },
+			{ // Other data.
+				Binding:    2,
+				Visibility: wgpu.ShaderStageFragment,
+				Buffer: wgpu.BufferBindingLayout{
+					Type: wgpu.BufferBindingTypeUniform,
+				},
+			},
 		},
 	}); err != nil {
 		return err
@@ -275,7 +284,7 @@ func (bg *Bg) create_pipeline(d *wgpu.Device) error {
 			Targets: []wgpu.ColorTargetState{
 				{
 					Format:    FORMAT,
-					Blend:     &wgpu.BlendStatePremultipliedAlphaBlending,
+					Blend:     &wgpu.BlendStateAlphaBlending,
 					WriteMask: wgpu.ColorWriteMaskAll,
 				},
 			},
@@ -285,6 +294,15 @@ func (bg *Bg) create_pipeline(d *wgpu.Device) error {
 			Mask:                   0xFFFFFFFF,
 			AlphaToCoverageEnabled: false,
 		},
+	}); err != nil {
+		return err
+	}
+
+	println(uint64(unsafe.Sizeof(bg.swirl_data)))
+
+	if bg.swirl_data_uniform, err = d.CreateBuffer(&wgpu.BufferDescriptor{
+		Size:  uint64(unsafe.Sizeof(bg.swirl_data)) * 4,
+		Usage: wgpu.BufferUsageUniform | wgpu.BufferUsageCopyDst,
 	}); err != nil {
 		return err
 	}
@@ -299,6 +317,11 @@ func (bg *Bg) create_pipeline(d *wgpu.Device) error {
 			{
 				Binding: 1,
 				Sampler: bg.swirl_sampler,
+			},
+			{
+				Binding: 2,
+				Buffer:  bg.swirl_data_uniform,
+				Size:    wgpu.WholeSize,
 			},
 		},
 	}); err != nil {
