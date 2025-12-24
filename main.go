@@ -179,7 +179,8 @@ func main() {
 			mono[i] = float32(math.Sqrt(2)/2) * (buf[i*2] + buf[i*2+1])
 		}
 
-		stream.Write(aqua.AudioBufferNewCount(mono, n))
+		_ = stream
+		// stream.Write(aqua.AudioBufferNewCount(mono, n))
 	}
 
 	// Extract metadata.

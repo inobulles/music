@@ -5,11 +5,21 @@ package main
 
 import (
 	_ "embed"
+	"image"
+	"image/draw"
+	"os"
+
 	"obiw.ac/aqua/wgpu"
 )
 
 type Bg struct {
-	// Texture stuff.
+	// Swirl texture stuff.
+
+	swirl_tex     *wgpu.Texture
+	swirl_view    *wgpu.TextureView
+	swirl_sampler *wgpu.Sampler
+
+	// Render attachment texture stuff.
 
 	tex  *wgpu.Texture
 	view *wgpu.TextureView
@@ -20,6 +30,7 @@ type Bg struct {
 	bind_group_layout *wgpu.BindGroupLayout
 	pipeline_layout   *wgpu.PipelineLayout
 	pipeline          *wgpu.RenderPipeline
+	bind_group        *wgpu.BindGroup
 }
 
 const FORMAT = wgpu.TextureFormatRGBA8Unorm
@@ -29,6 +40,10 @@ var shader_src string
 
 func (Bg) New(d *wgpu.Device) (*Bg, error) {
 	bg := &Bg{}
+
+	if err := bg.create_swirl(d); err != nil {
+		return nil, err
+	}
 
 	if err := bg.create_tex(d); err != nil {
 		return nil, err
@@ -69,6 +84,7 @@ func (bg *Bg) Render(d *wgpu.Device) error {
 	defer render_pass.Release()
 
 	render_pass.SetPipeline(bg.pipeline)
+	render_pass.SetBindGroup(0, bg.bind_group, nil)
 	render_pass.Draw(6, 1, 0, 0)
 	render_pass.End()
 
@@ -81,6 +97,76 @@ func (bg *Bg) Render(d *wgpu.Device) error {
 	defer cmd_buf.Release()
 
 	d.GetQueue().Submit(cmd_buf)
+
+	return nil
+}
+
+func (bg *Bg) create_swirl(d *wgpu.Device) error {
+	f, err := os.Open("swirl.png")
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	img, _, err := image.Decode(f)
+	if err != nil {
+		return err
+	}
+
+	rgba := image.NewRGBA(img.Bounds())
+	draw.Draw(rgba, rgba.Bounds(), img, img.Bounds().Min, draw.Src)
+
+	// Create texture for swirl.
+
+	w := uint32(img.Bounds().Dx())
+	h := uint32(img.Bounds().Dy())
+
+	size := wgpu.Extent3D{
+		Width:              w,
+		Height:             h,
+		DepthOrArrayLayers: 1,
+	}
+
+	if bg.swirl_tex, err = d.CreateTexture(&wgpu.TextureDescriptor{
+		Label:         "Background swirl texture",
+		Size:          size,
+		MipLevelCount: 1,
+		SampleCount:   1,
+		Dimension:     wgpu.TextureDimension2D,
+		Format:        wgpu.TextureFormatRGBA8Unorm,
+		Usage:         wgpu.TextureUsageTextureBinding | wgpu.TextureUsageCopyDst,
+	}); err != nil {
+		return err
+	}
+
+	if err := d.GetQueue().WriteTexture(
+		bg.swirl_tex.AsImageCopy(),
+		rgba.Pix,
+		&wgpu.TexelCopyBufferLayout{
+			Offset:       0,
+			BytesPerRow:  4 * w,
+			RowsPerImage: h,
+		},
+		&size,
+	); err != nil {
+		return err
+	}
+
+	if bg.swirl_view, err = bg.swirl_tex.CreateView(nil); err != nil {
+		return err
+	}
+
+	if bg.swirl_sampler, err = d.CreateSampler(&wgpu.SamplerDescriptor{
+		AddressModeU:  wgpu.AddressModeClampToEdge,
+		AddressModeV:  wgpu.AddressModeClampToEdge,
+		AddressModeW:  wgpu.AddressModeClampToEdge,
+		MagFilter:     wgpu.FilterModeLinear,
+		MinFilter:     wgpu.FilterModeLinear,
+		MipmapFilter:  wgpu.MipmapFilterModeLinear,
+		MaxAnisotropy: 1,
+	}); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -142,20 +228,20 @@ func (bg *Bg) create_pipeline(d *wgpu.Device) error {
 					Type: wgpu.SamplerBindingTypeFiltering,
 				},
 			},
-			{ // Colour #1.
-				Binding:    2,
-				Visibility: wgpu.ShaderStageFragment,
-				Buffer: wgpu.BufferBindingLayout{
-					Type: wgpu.BufferBindingTypeUniform,
-				},
-			},
-			{ // Colour #2.
-				Binding:    3,
-				Visibility: wgpu.ShaderStageFragment,
-				Buffer: wgpu.BufferBindingLayout{
-					Type: wgpu.BufferBindingTypeUniform,
-				},
-			},
+			// { // Colour #1.
+			// 	Binding:    2,
+			// 	Visibility: wgpu.ShaderStageFragment,
+			// 	Buffer: wgpu.BufferBindingLayout{
+			// 		Type: wgpu.BufferBindingTypeUniform,
+			// 	},
+			// },
+			// { // Colour #2.
+			// 	Binding:    3,
+			// 	Visibility: wgpu.ShaderStageFragment,
+			// 	Buffer: wgpu.BufferBindingLayout{
+			// 		Type: wgpu.BufferBindingTypeUniform,
+			// 	},
+			// },
 		},
 	}); err != nil {
 		return err
@@ -163,9 +249,9 @@ func (bg *Bg) create_pipeline(d *wgpu.Device) error {
 
 	if bg.pipeline_layout, err = d.CreatePipelineLayout(&wgpu.PipelineLayoutDescriptor{
 		Label: "Background pipeline layout",
-		// BindGroupLayouts: []*wgpu.BindGroupLayout{
-		// 	bg.bind_group_layout,
-		// },
+		BindGroupLayouts: []*wgpu.BindGroupLayout{
+			bg.bind_group_layout,
+		},
 	}); err != nil {
 		return err
 	}
@@ -198,6 +284,22 @@ func (bg *Bg) create_pipeline(d *wgpu.Device) error {
 			Count:                  1,
 			Mask:                   0xFFFFFFFF,
 			AlphaToCoverageEnabled: false,
+		},
+	}); err != nil {
+		return err
+	}
+
+	if bg.bind_group, err = d.CreateBindGroup(&wgpu.BindGroupDescriptor{
+		Layout: bg.bind_group_layout,
+		Entries: []wgpu.BindGroupEntry{
+			{
+				Binding:     0,
+				TextureView: bg.swirl_view,
+			},
+			{
+				Binding: 1,
+				Sampler: bg.swirl_sampler,
+			},
 		},
 	}); err != nil {
 		return err
